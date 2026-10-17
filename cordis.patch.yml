@@ -1,0 +1,47 @@
+# The @argszero/dsh-stdio-error-guard bundle patch: mount and go.
+#
+# Discussion #9904 reports the desktop host dying on
+#
+#   dsh: fatal uncaught exception: Error: read ECONNRESET
+#       at WriteWrap.onWriteComplete [as oncomplete] (node:internal/stream_base_commons:87:19)
+#       ...
+#       at ChildProcess._handle.onexit (node:child_process:1124:15)
+#
+# three times in two days, on Windows, during ordinary use — after which the
+# Electron shell stays alive while the loopback web server and the dsh-dock relay
+# are gone, with no UI signal, because nothing in the shell can respawn a host
+# (`apps/desktop/src/host-process.ts:187` returns the existing promise whenever a
+# child exists; `apps/desktop/src/main.ts:447` is the only construction site).
+#
+# The escalation is by design and is not what this patch changes. `installFailLoud`
+# turns an uncaught exception into one `util.inspect` diagnostic and `exit(1)`
+# (`packages/boot/app-boot/src/index.ts:884`, diagnostic at `:896`, exits at
+# `:898` and `:917`, both process events registered at `:930-931`), registered
+# for every shipped profile — the desktop host included, which reaches it through
+# `runProfile` — in `apps/cli/src/profile-boot.ts:309`, because
+# only the throw site knows which state is intact. What is wrong is that a **pipe**
+# `error` reaches it at all: on a child that has already exited the pipe is a
+# corpse, the exit facts are the authoritative outcome, and the tree's own
+# precedent says exactly that — `packages/experimental/ptc-runtime-python/src/index.ts:2318-2324`
+# registers an inert `error` handler on fd-3, stdout and stderr, with the comment
+# "The authoritative failure signal is `child.on('close')` above".
+#
+# This patch mounts the plugin that applies that same contract one layer up: it
+# shadows the subprocess service's `spawn` and `spawnTerminal` — one own-property
+# write on the instance, which is what makes it cover every caller — and attaches
+# one inert `'error'` listener to each stream the returned handle exposes
+# (`stdin`, `stdout`, `stderr`, `control`; `output` on a terminal).
+#
+# `inject` is declared here as well as in the plugin because the entry row is what
+# a profile composes: a guard that mounts before the service it shadows would
+# shadow nothing and say nothing about it.
+#
+# Nothing else changes: no spec, no argv, no environment, no byte, no other
+# listener, and the handle the caller receives is the provider's own object. It
+# does not touch the fatal policy and cannot restore an already-dead host.
+
+- insert:
+    - id: stdio-error-guard
+      name: '@argszero/dsh-stdio-error-guard'
+      inject:
+        - subprocess

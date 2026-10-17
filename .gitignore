@@ -1,0 +1,6 @@
+node_modules
+lib
+*.tgz
+tmp
+*.log
+tsconfig.tsbuildinfo

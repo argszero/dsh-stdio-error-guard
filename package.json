@@ -1,0 +1,72 @@
+{
+  "name": "@argszero/dsh-stdio-error-guard",
+  "description": "A containment plugin for the stdio `error` events that kill a dsh host. A Node stream that emits 'error' with no listener throws, and the harness answers an uncaught exception by design with one diagnostic and exit 1 — right for a throw mid-update, wrong for a pipe on a child that has already died. The tree already says so once: ptc-runtime-python's own comment calls ECONNRESET/EPIPE on fd-3 and the stdout/stderr pipes an event to swallow, because `child.on('close')` is the authoritative signal. Discussion #9904 is that event reaching the desktop host: `Error: read ECONNRESET` raised inside a ChildProcess stdio callback, escalated to `dsh: fatal uncaught exception`, host exited 1, loopback server and relay dead behind a live Electron shell. This plugin shadows the subprocess service's `spawn` and `spawnTerminal` — one own-property write on the underlying instance, which is what makes the seam process-wide — and attaches one inert 'error' listener to each stream the returned handle exposes (stdin, stdout, stderr, control on a child; output on a terminal). It consumes no byte, replaces no listener, does not destroy or resume the stream, and returns the provider's own handle object un-wrapped. Nothing else changes: not the spec, the argv, the environment or the exit facts. It does not change the fatal policy, does not resume a failed operation and cannot restore a dead host; collect-mode streams are internal to the provider, and the Electron shell's own pipes are in a process that mounts no plugins — both named as upstream work in the README. Zero runtime dependencies.",
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/types/**/*.d.ts",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/argszero/dsh-stdio-error-guard.git"
+  },
+  "homepage": "https://github.com/argszero/dsh-stdio-error-guard#readme",
+  "bugs": {
+    "url": "https://github.com/argszero/dsh-stdio-error-guard/issues"
+  },
+  "keywords": [
+    "cordis",
+    "deepseek-harness",
+    "dsh",
+    "plugin",
+    "subprocess",
+    "stdio",
+    "econnreset",
+    "epipe",
+    "uncaught-exception",
+    "stability"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2 || ~4.0.5-alpha.1",
+    "@deepseek-ai/dsh-subprocess": ">=0.1.7-rc.2 <0.2.0 || >=0.2.0-rc.1 <0.2.1-alpha.2 || >=0.2.1-alpha.2 <0.3.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5-alpha.1",
+    "@deepseek-ai/dsh-subprocess": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-subprocess-local": "0.2.1-alpha.2",
+    "@types/node": "^24.19.1",
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "build": "tsc",
+    "pretest": "tsc",
+    "test": "node --test \"test/*.spec.mjs\"",
+    "prepublishOnly": "tsc",
+    "test:inject": "node scripts/inject-defects.mjs"
+  },
+  "engines": {
+    "node": "^22.19 || >=24"
+  }
+}
